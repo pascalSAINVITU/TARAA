@@ -10,13 +10,14 @@ One can create a new ‘attested domain’ for a high fee.
 One can contribute to the reputation of an address by sending an evaluation between ‘0’ and ‘5’ if he or she is attested by the related attestor.
 One can change his/her evaluation later by voting again, the previous vote will be overrided.
 
-## Additional information:
-If no ‘domain’ is specify the default one is used: ‘base’
-If no ‘attestor’ is defined the ‘real identity attestor’ will be used.
-The gathered fees are used to reward the contributors who evaluate attested addresses. The reward is a pourcentage of a balance available for a given attestor scope, this will create a variable reward but insure that there will always be a reward available as small as it is. If the evaluated address is not attested the reward is symbolic or it will be too easy to empty the balance.
-The hash of the address that created a domain is stored, so that creators can proove that they are the creator of the domain. (yeah but only once, should use the signature functionnality in next version)
-A address cannot vote for itself.
-SPAM and SCAMS
+## Additional properties and information:
+* If no ‘domain’ is specify the default one is used: ‘base’
+* If no ‘attestor’ is defined the ‘real identity attestor’ will be used.
+* The gathered fees are used to reward the contributors who evaluate attested addresses. The reward is a pourcentage of a balance available for a given attestor scope, this will create a variable reward but insure that there will always be a reward available as small as it is. If the evaluated address is not attested the reward is symbolic or it will be too easy to empty the balance.
+* The hash of the address that created a domain is stored, so that creators can proove that they are the creator of the domain. (yeah but only once, should use the signature functionnality in next version)
+* A address cannot vote for itself.
+
+## SPAM and SCAMS
 * Cannot spam by creating much domains as it required a high fee
 * Cannot spam by making too much requests because it is not harming and there is also a small fee
 * Cannot emptying the ‘attestor scope balances’ because you need to be attested by the attestor of the attested domain and you * can revote only every 30 days.
@@ -45,7 +46,7 @@ Replacing your vote for the address ‘MPG4MHVYUAP3B5IQX44LTINTSUKYB6JA’ in th
 * data.address = MPG4MHVYUAP3B5IQX44LTINTSUKYB6JA
 * data.evaluation = 4
 ### Example 3: 
-create a new attested domain with the UWA mode called ‘Obay’ and attested by ‘35IT3ZYKEPQSCXG2F7A7KWNRAD3SZXN4’
+Create a new attested domain with the UWA mode called ‘Obay’ and attested by ‘35IT3ZYKEPQSCXG2F7A7KWNRAD3SZXN4’
 send to TARAA 510000 bytes (10,000.0 for min bounce fee and 500,000.0 for the creation fee)
 * data.creation = uwa
 * data.domain = obay
