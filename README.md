@@ -22,7 +22,7 @@ One can change his/her evaluation later by voting again, the previous vote will 
 * Cannot spam by making too much requests because it is not harming and there is also a small fee
 * Cannot emptying the ‘attestor scope balances’ because you need to be attested by the attestor of the attested domain and you * can revote only every 30 days.
 
-## Possible data input and Examples
+## Possible data input
 * data.domain aka data.do: optional <domain name> or ‘base’ will be use
 * data.attestor aka data.at: optional <Obyte attestor address> or default will be use
 * data.request aka data.re: <Obyte address object of the reputation request>
@@ -30,10 +30,10 @@ One can change his/her evaluation later by voting again, the previous vote will 
 * data.evaluation aka data.ev: [0–5]
 * data.creation aka data.cr: [uwa, twa, crwa, cbwa] to create a new Attested Domain (it will require ‘data.domain’ and ‘data.attestor’) <uwa> will use ‘Un-Weighted Average’, <twa> for ‘Time Weighted Average’, <rwa> for ‘Contributor Reputation weighted Average’ and <cbwa> for ‘Contributor Balance Weighted Average’
   
+## Examples
 ### Example 1: 
 Requesting the reputation of the adress ‘MPG4MHVYUAP3B5IQX44LTINTSUKYB6JA’ in the Default Attested Domain (‘DAD’)
-* send 20000 bytes (10000 for min bounce + 10000 as fee for the attestor balance in the AA)
-* to the adress of the AA
+* send to TARAA 20000 bytes (10000 for min bounce + 10000 as fee for the attestor balance in the AA)
 * data.request = MPG4MHVYUAP3B5IQX44LTINTSUKYB6JA (you could use data.ad for shorter)
 ### Example 2.1: 
 Contribute to a reputation by voting 3/5 for the address ‘MPG4MHVYUAP3B5IQX44LTINTSUKYB6JA’ in the ‘DAD’
@@ -47,7 +47,7 @@ Replacing your vote for the address ‘MPG4MHVYUAP3B5IQX44LTINTSUKYB6JA’ in th
 * data.evaluation = 4
 ### Example 3: 
 Create a new attested domain with the UWA mode called ‘Obay’ and attested by ‘35IT3ZYKEPQSCXG2F7A7KWNRAD3SZXN4’
-send to TARAA 510000 bytes (10,000.0 for min bounce fee and 500,000.0 for the creation fee)
+* send to TARAA 510000 bytes (10,000.0 for min bounce fee and 500,000.0 for the creation fee)
 * data.creation = uwa
 * data.domain = obay
 * data.attestor = 35IT3ZYKEPQSCXG2F7A7KWNRAD3SZXN4
