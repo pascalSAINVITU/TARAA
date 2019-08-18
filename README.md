@@ -1,5 +1,5 @@
 # TARAA
-The Attested Reputations Autonomous Agent
+The Attested Reputations Autonomous Agent (Obyte Autonomous Agent)
 
 ## Autonomous Agent Summary:
 The AA is counterfeit-resistant ranking system that deal with reputation of addresses (attested or not) in a customizable ‘Attested Domain’ and with a configurable strategy for computing reputation. An ‘Attested Domain’ is composed of a ‘domain name’ paired to an ‘attestor address’.
