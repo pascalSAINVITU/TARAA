@@ -1,411 +1,148 @@
-[
-   "autonomous agent",
-   {
-      "bounce_fees": {
-         "base": 10000
-      },
-      "init": "{
-      if (!$FOREVER_CONSTANT){  // FOREVER CONSTANTS  (the if(!) is trick to be able to create blocks)
-   
-         $AA_in_debug_mode = false;
-         $is_test_mode = true;
-         $owner = 'SX66Y36BOU77S7MWML6JQQA3CJLX4COR';
-         $domain_creation_fee = 500000;        // 500,000.0 bytes
-         $requesting_reputation_fee = 0;         // 10,000.0 bytes
-         $reward_pourcentage = 1;            // 1% of the balance for an evalution of an attested address
-         $symbolic_reward= 10;                // for evaluation of not attested address 
-         $evaluation_delay = 2*24*60*60*30;      // 30 days
-         $default_domain = 'base';
-         $default_attestor = '35IT3ZYKEPQSCXG2F7A7KWNRAD3SZXN4'; //'UOYYSPEE7UUW3KJAB5F4Y4AWMYMDDB4Y'; // official attestor
-         $mode_uwa = 'uwa'; $mode_twa = 'twa'; $mode_cbwa = 'cbwa'; $mode_crwa = 'crwa';
-         $default_mode_of_average = $mode_uwa;
+{
+/*
+Check in explorer: https://testnetexplorer.obyte.org/#zKopB8sd0+s0PDOtUjbVOOQSu8xRuwuQLaXI+umrjG0=
+Agent address: UHNH72MK4SENTB6OIC3GETMEPATCAP4P
+Check in explorer: https://testnetexplorer.obyte.org/#gedNOib0Mn1GCGdk7FY4g5EuiTVZwoEWz80nQ7HcXUk=
+Agent address: AJSPLVQVL5KHHQLNYU6EKHHVEW4PODCH
+Check in explorer: https://testnetexplorer.obyte.org/#A8KChNWOG/CGgFdrENNI/uVb1gZR7HRgPLvilIG+tGA=
+Agent address: 65B43M2WJ3ZJOTQUPL5GQHEHGHPIFA4Z
+*/
+		bounce_fees: { base: 10000 },
+		init: "{
+			// admin stuff
+				$AA_OWNER = "O7NYCFUL5XIJTYE3O4MKGMGMTN6ATQAJ"; // to collect the dust
+				$AA_NAME = "THAANKS";
+				$LOPAVAA = "YICOQCAWUSFBIQGBB4HUPQ23U37RA5WG"; // AA used to get last or popular version of other non-sensitives AA
+				$DANAA = var[$LOPAVAA]["DANAA_last_version"]; // get last version of DANAA, Dynamic Asset Names
 
-         $message_creation_howto ='set \'creation\' to ['||$mode_uwa||', '||$mode_twa||', '||$mode_cbwa||', '||$mode_crwa||']';
-      }
+			// intructions
+				$INSTRUCTIONS_USE_CASES = "Be first to use 'token = <received token>' after the request time and before the acceptable delay to receive the associated reward. To subscribe as an helper and have a chance to be picked up later use: 'subscribe = true'. To unsubscribe use: 'unsubscribe = true'. If your are an AA use at minimum 'ask_help = <true>'. ";
+				$INSTRUCTIONS_ASK_HELP = "Use 'ask_help = <true>' with optionaly 'helper = <address>' if you want to propose an helper. Use 'private_mode = true' to force the triggering to be done by the specific helper. If you need to be trigger after a given time, use 'request_time = <timestamp>' and if you want to give a dead line use 'acceptable_delay = <delay in seconds>'. ";
+			// definitive constantes	
+				$DEFAULT_ACCEPTABLE_DELAY = 10*24*60*60;
+			// trigger variables
+				$user = trigger.address;
+				$i = trigger.data;
+		}",
+   	messages: {
+      cases: [
+         { if: "{ !!$i.ask_help }", 		// looking for an helper to trigger an aa in the futur
+            init: "{
+				if ($i.ask_help != "true") bounce ($INSTRUCTIONS_ASK_HELP);
+				// preparing 
+					$aa = $i.aa otherwise $user;
+					$requested_time = $i.requested_time otherwise timestamp;
+					$acceptable_delay = !!$i.acceptable_delay ? $i.acceptable_delay : $DEFAULT_ACCEPTABLE_DELAY;
+					$received_amount = trigger.output[[asset!=base]].amount otherwise trigger.output[[asset=base]].amount;
+					$reward_amount = $received_amount - 1000;
+					$reward_asset = trigger.output[[asset!=base]].asset != "none" ? trigger.output[[asset!=base]].asset : "base";
+					$asset_nice_name = var[$DANAA][$reward_asset||"_shortName"] otherwise $reward_asset;
+				// defining helper
+					$good_guy_count = var["good_guy_count"] otherwise 0;
+					$helper = $i.helper otherwise $good_guy_count > 0 ? 
+						var["good_guy_"||number_from_seed(timestamp,0, $good_guy_count)] : bounce ("No good guy available, use 'helper = <address>'!");
+				// token used to store var about AA needs for a given time
+					$token = sha256($aa||$requested_time);
+            }",
+            messages: [
+				{ app: "data", payload: {
+					"message": "{"Get "||$reward_amount||" "||$asset_nice_name||" if you are first to send back this 'token = <token received below>'' to me between "||timestamp_to_string($requested_time)||" and "||timestamp_to_string($requested_time+$acceptable_delay, 'datetime')}",
+					"me": "{this_address}",
+					"token": "{$token}"
+				} },
+				{ app: "payment", payload: { asset: "base", outputs: [
+					{ address: "{$helper}", amount: "{4}" } // unsual amount to become the THAANKS signature
+				] } },
+				{ app: "state", state: "{ 
+					var[$token||"_aa"] = $aa;    
+					var[$token||"_helper"] = $helper;                  var[$token||"_private_mode"] = $i.private_mode;
+					var[$token||"_reward_amount"] = $reward_amount;    var[$token||"_reward_asset"] = $reward_asset;
+					var[$token||"_requested_time"] = $requested_time;  var[$token||"_acceptable_delay"] = $acceptable_delay;
+					response['message'] = $helper||" has been asked for help ^^"; 
+				}" }
+            ]
+         },
+         { if: "{ $i.token }", 				// return token in time to get reward
+            init: "{ 
+				// existing?
+               		$token = $i.token otherwise bounce ($INSTRUCTIONS_TRIGGER_FOR_REWARD);
+				// been overtaken?
+					$aa = var[$token||"_aa"];
+              	if (!$aa) bounce ("Too late someone was quicker (or you mistype the token)!"); 
 
-      if (!$TRIGGER_INFO){   // info coming from the triggering transaction
-
-         $user_address = trigger.address;                   // Attested user (if evaluator)
-         $requested_address = trigger.data.request otherwise   trigger.data.re otherwise 'none';     
-         $evaluation_address = trigger.data.adress otherwise   trigger.data.ad otherwise 'none';     
-         $domain = trigger.data.domain otherwise   trigger.data.do otherwise $default_domain;         // Evaluation domain
-         $attestor_address = trigger.data.attestor otherwise trigger.data.at otherwise $default_attestor;
-         $evaluation = trigger.data.evaluation otherwise trigger.data.ev otherwise -1;  // Evaluation: 0-5
-         $mode_of_average_for_creation = trigger.data.creation otherwise trigger.data.cr otherwise 'unknown';
-
-         if (($requested_address !='none') and ($evaluation_address!='none'))
-            bounce ("trigger.data.request and trigger.data.adress cannot be both set");
-
-         // function?
-         $is_creating= ($mode_of_average_for_creation!='unknown')? true:false;
-
-         if ($requested_address !='none'){
-            $is_requesting=true;
-            $evaluated_address = $requested_address;
-         }
-         if ($evaluation_address !='none'){
-            $is_contributing=true;
-            $evaluated_address = $evaluation_address;
-         }
-
-         if ($AA_in_debug_mode){
-            $TRIGGER_INFO = 'At the begining there was a user ('||$user_address||') interested in a seller('|| $evaluated_address ||') in a given domain ('|| $domain ||') in the scope of an attestor ('|| $attestor_address ||'), the evaluation is set to ('|| $evaluation ||'). ';
+				// too early ? 
+					$requested_time = var[$token||"_requested_time"];
+					if ($requested_time > timestamp)bounce ("Too early, try at "||timestamp_to_string($requested_time));
+				
+				// too late ?
+					$too_late = timestamp > $requested_time + var[$token||"_acceptable_delay"];
+				
+				// private ?
+					if (!!var[$token||"_private_mode"])
+						if (var[$token||"_helper"] != $user) bounce ("You are not allow to get this private reward !");
+				
+				// prepare rewards !
+					$bytes = trigger.output[[asset=base]].amount - 2000; // to post this TX and to give 1000 to AA
+					$reward_in_other = var[$token||"_reward_asset"] != "base" ? var[$token||"_reward_amount"] : false;
+					if ($too_late)
+					{
+						$bytes_for_user = $bytes + 2000; // at least send back all the bytes spent...
+						$bytes_for_aa = var[$token||"_reward_asset"] == "base" ? var[$token||"_reward_amount"]-1000 : 0;
+					}
+					else
+					{
+						$bytes_for_user = var[$token||"_reward_asset"] == "base" ? var[$token||"_reward_amount"] + $bytes: $bytes;
+						$bytes_for_aa = 1000;
+					}
+            }",
+            messages: [
+				{ if: '{ !!$reward_in_other }', 
+					app: "payment",  payload: { asset: "{ var[$token||"_reward_asset"] }", outputs: [
+						{ address: "{ $too_late ? $aa : $user }", amount: "{ $reward_in_other }" } ] } 
+				},
+				{ app: "payment", payload: { asset: "base", outputs: [
+					{ address: "{ $user }", amount: "{ $bytes_for_user }" },
+					{ address: "{ $aa }", amount: "{ $bytes_for_aa }" } ]}
+				},
+				{ app: "state", state: "{ 
+					var[$token||"_aa"] = false;   
+					var[$token||"_helper"] = false;                    var[$token||"_private_mode"] = false;
+					var[$token||"_reward_amount"] = false;             var[$token||"_reward_asset"] = false;
+					var[$token||"_requested_time"] = false;            var[$token||"_acceptable_delay"] = false;
+					response['message'] = $too_late ? "Too late, sorry !" : $user||" has been rewarded ^^"; 
+				}" }
+            ]
+         },
+         { if: "{ $i.subscribe }", 		// Subscribe as an enthousiast helper;
+            init: "{ if (var[$user]) bounce ("You are motivated, but once is enough!"); }",
+            messages: [ { app: "state", state: "{ 
+							var["good_guy_count"] += 1;
+							var["good_guy_"||$user||"_id"] = var["good_guy_count"];
+							var["good_guy_"||var["good_guy_count"]] = $user;
+							response['message'] = "Subscribed ^^. "; 
+            }" } ]
+         },
+         { if: "{ $i.unsubscribe }", 	// Unsubscribe as an enthousiast helper;
             
-            response['TRIGGER_INFO'] = $TRIGGER_INFO;
-         }
-      }
-      if (!$HASHES){  // hashing to avoid to store the reputation openely in the dag (euh why?)
-         $user_address_hash = sha256($user_address);
-         $evaluated_address_hash = sha256($evaluated_address);
-         $domain_hash = sha256($domain);
-         $attestor_hash = sha256($attestor);
-         $attested_domain = sha256($domain_hash and $attestor_hash);
-         $evaluation_hash = sha256($attested_domain and $evaluated_address_hash and $user_address_hash);
-         $reputation_hash = sha256(($attested_domain and $evaluated_address_hash) || 'reputation');
-         $evaluation_count_hash = sha256(($attested_domain and $evaluated_address_hash) || 'count');
-
-         // confuse attested address in the dag to avoid to gather information for free 
-         // is it even possible ? $evaluated_address_confused = $evaluated_address(2);
-
-         if ($AA_in_debug_mode){
-            $HASHES= 'user hash is ('|| $user_address_hash ||') seller ('|| $evaluated_address_hash ||') domain ('|| $domain_hash ||') attestor ('|| $attestor_hash ||') attested_domain ('|| $attested_domain ||'). The evaluation hash for the AD and this pair of user is ('|| $evaluation_hash ||') seller reputation hash is ('|| $reputation_hash ||') number of evaluation for this seller hash is ('|| $evaluation_count_hash ||'). ';
-            
-            response['HASHES'] = $HASHES;
-         }
-      }
-      if (!$INITIAL_DAG_STATE){ //  aka state variables
-         $attested_domain_exist_in_dag = var['coad('||$attested_domain];
-         $attested_domain_exist = ($attested_domain_exist_in_dag) ? true:false;
-         $balance_in_attestor_scope = var['bo('||$attestor_hash] otherwise 0; 
-         $reputation = var['ro('||$reputation_hash] otherwise -1;
-         $eval_count = var['eco('||$evaluation_count_hash] otherwise 0;
-         $previous_evaluation = var['leo('||$evaluation_hash] otherwise -1;
-         $is_re_evaluation = ($previous_evaluation != -1); // this return false if the var doesn't exist
-         $mode_of_average= var['moa('||$attested_domain] otherwise $default_mode_of_average;
-         
-         if ($AA_in_debug_mode){
-            $INITIAL_DAG_STATE = 'Is test mode activated to allow unattested user to vote? ('|| $state_var_is_test_mode || '). It is ('|| $attested_domain_exist || '(' || var['coad('||$attested_domain] ||')) that the attested domain exist. The balance for this attestor scope is ('|| $balance_in_attestor_scope || '(' || var['bo('||$attestor_hash] || ')). The reputation of the seller is ('|| $reputation || '(' || var['ro('||$reputation_hash] || ')) with ('|| $eval_count|| '(' || var['eco('||$evaluation_count_hash] ||')) votes. The previous evaluation of the seller from this user is ('|| $previous_evaluation|| '(' || var['le(=)'||$evaluation_hash] ||')) so it is ('|| $is_re_evaluation || ') to says that it is a re-evaluation. ';
-
-            response['INITIAL_DAG_STATE'] = $INITIAL_DAG_STATE;
-         }
-
-      }
-      if (!$PRELIMINARY_CHECKS){   // Preliminary checks and deductions
-
-         // attested domain?
-         $attested_default_domain = ($domain == $default_domain) and ($attestor_address == $default_attestor);
-
-         // Fee checks
-         $fee_received = trigger.output[[asset=base]].amount;
-         $is_creation_fee_received = $fee_received > $domain_creation_fee;
-         $is_requesting_fee_received = $fee_received > $requesting_reputation_fee;
-
-         if ($AA_in_debug_mode){
-            $PRELIMINARY_CHECKS= 'Requesting mode is ('|| $is_requesting ||') contributing mode is('|| $is_contributing ||') this is ('|| $attested_default_domain ||') to say that we will work with the default attested domain. The fee received is ('|| $fee_received ||') ok for creation? ('|| $is_creation_fee_received ||') ok for requesting a reputation? ('|| $is_requesting_fee_received ||'). ';
-
-            response['PRELIMINARY_CHECKS'] = $PRELIMINARY_CHECKS;
-         }
-      }
-      
-   }",
-      "messages": {
-         "cases": [
-            {
-               "if": "{$is_requesting}",
-               "init": "{
-
-               if (!$REQUESTING_CHECKS){ //
-                  if (!$attested_domain_exist and !$attested_default_domain)
-                     bounce('Sorry, You have requested reputation for a domain-attestor pair that do not exist.');
-                  $reputationExists = ($reputation != -1);
-                  if (!$reputationExists)
-                     bounce('Sorry, the address (user) do not have reputation in this domain-attestor pair yet. Please consider to rate this user once you interacted with him/her.');
-                  if (!$is_requesting_fee_received)
-                     bounce('Sorry, The fee to request a reputation is '|| $requesting_reputation_fee || 'bytes');
-
-                  if(!$evaluated_address)
-                     bounce('Sorry, You have to specify which address you want to find reputation for. Please add an \'address\' field in the data section.');
-
-                  
-                  $evaluated_is_attested = attestation[[attestors=$attestor_address, address=$evaluated_address, ifnone=0]];
-
-                  if ($AA_in_debug_mode){
-                     $REQUESTING_CHECKS = 'Seller attestation is ('|| $evaluated_is_attested ||'). ';
-
-                     response['REQUESTING_CHECKS'] = $REQUESTING_CHECKS;
-                  }
-               }
-               
-               if (!$RETURNING_REPUTATION){ // Respond
-
-                  $reputation_to_show = round($reputation,1);
-                  $message_about_reputation ='Reputation for domain \''|| $domain ||'\' is '||$reputation_to_show||'/5 from ' || $eval_count ||  ' votes. ';
-                  if ($evaluated_is_attested)
-                     $message_about_attestation = 'and the address is attested by \''||$attestor_address||'\'). ';
-                  else
-                     $message_about_attestation = 'BUT the address is NOT attested by \''||$attestor_address||'\')! ';
-                  
-                  response['message'] = $message_about_reputation || $message_about_attestation;
-                  response['domain'] = $domain;
-                  response['attestor'] = $attestor_address;
-                  response['reputation'] = $reputation_to_show;
-                  response['evaluation_count'] = $eval_count;
-                  response['attested'] = $evaluated_is_attested;
-
-                  if ($AA_in_debug_mode){
-                     $RETURNING_REPUTATION = $message_about_reputation || $message_about_attestation;
-
-                     response['RETURNING_REPUTATION'] = $RETURNING_REPUTATION;
-                  }
-               }
+            init: "{ if (!var[$user]) bounce ("You were not register!"); }",
+            messages: [ { app: "state", state: "{ 
+               var["good_guy_count"] -= 1;
+               $id = var["good_guys_"||$user||"_id"];
+               var["good_guy_"||$user||"_id"] = false;
+               var["good_guy_"||$id] = false;
+               response['message'] = "Unsubscribed ^^. "; 
+            }" } ]
+         },
+         {  // default case
+            init: "{ 
+               if ($user != $AA_OWNER) bounce ($INSTRUCTIONS_USE_CASES); 
             }",
-               "messages": [
-                  {
-                     "app": "data",
-                     "payload": {
-                        "message": "{$message}",
-                        "domain": "{$domain}",
-                        "attestor": "{$attestor_address}",
-                        "reputation": "{$reputation}",
-                        "evaluation_count": "{$evaluation_count}",
-                        "attested": "{$attested}"
-                     }
-                  },
-                  {
-                     "app": "state",
-                     "state": "{
-
-                     if (!$FINAL_DAG_STATE){ //
-                        $saved_fee = trigger.output[[asset=base]].amount - 1000; // 1000 is the data transfert fee approximation
-                        var['bo('||$attestor_hash] += $saved_fee;
-
-                        if ($AA_in_debug_mode){
-                           $FINAL_DAG_STATE = 'After the requesting, the new balance for this attestor scope is('|| var['bo('||$attestor_hash] ||') bytes, it added ('|| $saved_fee ||') bytes. ';
-
-                           response['FINAL_DAG_STATE'] = $FINAL_DAG_STATE;
-                        }
-                     }
-                  }"
-                  }
-               ]
-            },
-            {
-               "if": "{$is_creating}",
-               "init": "{
-
-               if (!$DOMAIN_CREATION){ //
-
-                  // Domain exist? bounce
-                  if ($attested_domain_exist)
-                     bounce('Sorry, The domain \''||$domain||'\' in the scope of the attestor \''||$attestor_address||'\' already exist. ');
-
-                  // fee paied?
-                  if (!$is_creation_fee_received)
-                     bounce('Sorry, The fee to create a domain is '|| $domain_creation_fee ||'bytes. ');
-
-                  // prepare meesages
-                  $message_about_creation_requirements = 'In creation mode you should have '||$message_creation_howto||' and you should not specify any \'evaluation\'. ';
-
-                  // to much param? bounce
-                  if($is_requesting or $is_contributing)
-                     bounce('Sorry, '|| $message_about_creation_requirements);
-
-                  // check if creation mode ok
-                  $moa = $mode_of_average_for_creation;
-                  if(($moa != $mode_uwa) and ($moa != $mode_twa) and ($moa != $mode_cbwa) and ($moa != $mode_crwa))
-                     bounce('Sorry, '|| $message_about_creation_requirements);
-
-                  $ok_to_create_domain=true;
-                  $message_about_creation = 'The domain \''||$domain||'\' has been created in the scope of the attestor \''||$attestor_address||'\' with the average mode \''||$mode_of_average_for_creation||'\'. ';
-                  
-                  response['message'] = $message_about_creation;
-
-                  if ($AA_in_debug_mode){
-                     $DOMAIN_CREATION = $message_about_creation;
-
-                     response['DOMAIN_CREATION'] = $DOMAIN_CREATION;
-                  }
-               }
-            }",
-               "messages": [
-                  {
-                     "app": "data",
-                     "payload": {
-                        "domain": "{$domain}",
-                        "attestor": "{$attestor_address}"
-                     }
-                  },
-                  {
-                     "app": "state",
-                     "state": "{
-
-                     if (!$FINAL_DAG_STATE){ //
-
-                        $saved_fee = trigger.output[[asset=base]].amount - 1000; // 1000 is the data transfert fee approximation
-
-                        var['coad('||$attested_domain]=$user_address_hash;   // creating the var.
-                        var['moa('||$attested_domain]=$mode_of_average_for_creation;
-
-                        var['bo('||$attestor_hash] += $saved_fee;
-
-                        if ($AA_in_debug_mode){
-                           $FINAL_DAG_STATE = 'After creation of the new, domain the new balance for this attestor scope is('|| var['bo('||$attestor_hash] ||') bytes, it added ('|| $saved_fee ||') bytes. ';
-
-                           response['FINAL_DAG_STATE'] = $FINAL_DAG_STATE;
-                        }
-                     }
-                  }"
-                  }
-               ]
-            },
-            {
-               "if": "{$is_contributing}",
-               "init": "{
-
-               if (!$CONTRIBUTION_CHECKING){ //
-
-                  if ($evaluation < 0 or $evaluation > 5)
-                     bounce('Sorry, data.evaluation should be set between 0 and 5 if you want to vote');
-
-                  if(!$evaluated_address)
-                     bounce('Sorry, You have to specify which address you want to find reputation for. Please add an \'address\' field in the data section.');
-
-                  if($evaluated_address==$user_address)
-                     bounce('Sorry, You cannot vote for yourself');
-
-                  if (!$attested_domain_exist and !$attested_default_domain)
-                     bounce('Sorry, the domain-attestor pair do not exists. It can be created if you ' || $message_creation_howto || ' but the fee is \''||$domain_creation_fee || '\' bytes, this money will be used to reward the evaluators. '|| $PRELIMINARY_CHECKS);
-
-                  $user_is_attested = attestation[[attestors=$attestor_address, address=$user_address, ifnone=0]];
-                  
-                  if (!$user_is_attested)
-                  {
-                     if(!$is_test_mode)
-                        bounce('Sorry, to be able to give an evaluation you need to be attested by the following attestor: \''|| $attestor_address || '\' or it will be too easy to pump a reputation.');
-                     if($is_test_mode)
-                        $message_about_testing ='Normally, a user not attested by the attestor linked to a domain should not be able to vote, but as you are in test mode you will be able to vote. ';
-                     else
-                        $message_about_testing ='';
-                  }
-                  else
-                     $message_about_testing ='';
-
-                  if ($AA_in_debug_mode){
-                     $CONTRIBUTION_CHECKING = $message_about_testing;
-
-                     response['CONTRIBUTION_CHECKING'] = $CONTRIBUTION_CHECKING;
-                  }
-               }
-               
-               if (!$REWARD_COMPUTATION){ // calculating reward
-                  if ($user_is_attested){
-                     $reward = round($balance_in_attestor_scope* $reward_pourcentage /100);
-                     $message_about_the_reward = 'The reward is '||$reward_pourcentage||'% of the attested scope which is '|| $balance_in_attestor_scope ||" bytes. ";
-                   }
-                   else{ 
-                      $reward = $symbolic_reward;
-                      $message_about_the_reward = 'The reward is symbolic because you are not attested by '|| $attestor_address||'. ';
-                   }
-
-                  if ($AA_in_debug_mode){
-                     $REWARD_COMPUTATION = 'The reward will be ('|| $reward ||'). '|| $message_about_the_reward ||'. ';
-         
-                     response['REWARD_COMPUTATION'] = $REWARD_COMPUTATION;
-                  }
-               }
-               
-               if (!$REPUTATION_COMPUTATION){ // compute new reputation
-                  $reputation_corrected = ($reputation == -1)? 0: $reputation;
-
-                  if ($mode_of_average)   { // == $mode_uwa) {
-                     $total_score=($reputation * $eval_count);
-                           
-                     if ($is_re_evaluation){
-                        $new_reputation = ($total_score + ($evaluation-$previous_evaluation) / ($eval_count));
-                        $message_about_re_evaluation = 'Your evaluation was changed from '||$previous_evaluation||' to '||$evaluation||'. ';
-                        $new_eval_count = $eval_count;
-                        $message_about_number_of_eval = 'The number of votes for this address is still '||$new_eval_count||'. ';
-                     }
-                     else{
-                        $new_reputation = ($total_score + $evaluation) / ($eval_count+1);
-                        $message_about_re_evaluation = '';
-                        $new_eval_count = $eval_count+1;
-                        $message_about_number_of_eval = '('||$new_eval_count||' votes attested for this address). ';
-                     }
-                  }
-                  $reputation_to_show = round($new_reputation,1);
-
-                  if ($AA_in_debug_mode){
-                     $REPUTATION_COMPUTATION = 'the new reputation is ('|| $new_reputation ||'('|| $reputation_to_show ||')). ';
-
-                     response['REPUTATION_COMPUTATION'] = $REPUTATION_COMPUTATION;
-                  }
-                  
-               }
-               
-               if (!$RESPONSE_CREATION){ // create message
-                  
-
-                  $message = $message_about_testing ||'Thank you for your contribution, a reward of '||$reward||' byte have been sent to you ('||$user_address||'). '|| $message_about_the_reward || 'The new reputation of '||$evaluated_address||' is now ('||$reputation_to_show||'/5). '|| $message_about_re_evaluation || $message_about_number_of_eval;
-
-                  response['message'] = $message;
-                  response['domain'] = $domain;
-                  response['attestor'] = $attestor_address;
-                  response['vote_from'] = $user_address;
-                  if ($is_re_evaluation)
-                  {
-                     response['old_evaluation'] = $previous_evaluation;
-                     response['new_evaluation'] = $evaluation;
-                  }
-                  else
-                     response['evaluation'] = $evaluation;
-                  response['old_reputation'] = $reputation;
-                  response['new_reputation'] = $new_reputation;
-                  response['attested'] = $evaluated_is_attested;
-
-                  if ($AA_in_debug_mode){   
-                     $RESPONSE_CREATION = 'The message to the user will be ('|| $message ||'). ';
-
-                     response['RESPONSE_CREATION'] = $RESPONSE_CREATION;
-                  }
-               }
-            }",
-               "messages": [
-                  {
-                     "app": "payment",
-                     "payload": {
-                        "asset": "{'base'}",
-                        "outputs": [
-                           {
-                              "address": "{trigger.address}",
-                              "amount": "{$reward}"
-                           }
-                        ]
-                     }
-                  },
-                  {
-                     "app": "state",
-                     "state": "{
-                     
-                     if (!$FINAL_DAG_STATE){ //
-
-                        var['ro('||$reputation_hash] = $new_reputation;
-                        var['eco('||$evaluation_count_hash] = $new_eval_count; 
-                        var['leo('||$evaluation_hash] = $evaluation;         // last evaluation for later revote
-                        var['bo('||$attestor_hash] = $balance_in_attestor_scope - $reward;      // attestor balance
-
-                        if ($AA_in_debug_mode){
-                           $FINAL_DAG_STATE = 'Finally the state of the DAG is: the new reputation of the seller is ('|| $new_reputation ||') with a number of vote of ('|| $new_eval_count ||'), the last evaluation saved from this user will be ('|| $evaluation ||'). The new balance available in the scope is ('|| var['bo('||$attestor_hash] ||'). ';
-
-                           response['FINAL_DAG_STATE'] = $FINAL_DAG_STATE;
-                        }
-                        
-                     }   
-                  }"
-                  }
-               ]
-            }
-         ]
-      }
-   }
-]
+            messages: [
+               { app: "payment", payload: { asset: "{'base'}", outputs: [ 
+                  { address: "{$AA_OWNER}", amount: "{$reward}"} 
+               ] } }
+            ]
+         }
+      ]
+   	}
+}
